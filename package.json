@@ -1,0 +1,21 @@
+{
+  "name": "fractal-art",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Realtime fractal art playground powered by Astro and Three.js.",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "astro": "^5.17.1",
+    "three": "^0.183.2"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.6",
+    "typescript": "^5.9.3"
+  }
+}

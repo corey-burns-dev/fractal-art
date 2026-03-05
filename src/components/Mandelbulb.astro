@@ -1,0 +1,991 @@
+---
+---
+
+<div id="canvas-container"></div>
+<div class="hud" aria-label="Fractal controls">
+  <section class="panel fractal-list">
+    <header>
+      <p class="kicker">Fractal Art</p>
+      <h1>Realtime Fractal Lab</h1>
+      <p class="hint">Drag to orbit, scroll to zoom</p>
+    </header>
+    <div class="button-grid">
+      <button data-type="0">Mandelbulb</button>
+      <button data-type="1">Menger Sponge</button>
+      <button data-type="2">Mandelbox</button>
+      <button data-type="3">Sierpinski</button>
+      <button data-type="4">Apollonian</button>
+      <button data-type="5">Julia 3D</button>
+      <button data-type="6">Kaleidoscopic</button>
+      <button data-type="7">Infinite Grid</button>
+      <button data-type="8">Torus Fold</button>
+      <button data-type="9">Octahedron</button>
+      <button data-type="10">Hyper-Gasket</button>
+    </div>
+  </section>
+
+  <section class="panel params-panel">
+    <div class="label">Parameters</div>
+    <div class="param-group">
+      <label>Scale <span id="scale-val">1.00</span></label>
+      <input type="range" id="param-scale" min="0.1" max="3.0" step="0.01" value="1.0" />
+    </div>
+    <div class="param-group">
+      <label>Iterations <span id="iter-val">8</span></label>
+      <input type="range" id="param-iter" min="1" max="16" step="1" value="8" />
+    </div>
+    <div class="param-group">
+      <label>Morphism <span id="morph-val">0.00</span></label>
+      <input type="range" id="param-morph" min="-1.0" max="1.0" step="0.01" value="0.0" />
+    </div>
+    <div class="param-group">
+      <label>Bloom <span id="bloom-val">0.95</span></label>
+      <input type="range" id="param-bloom" min="0.0" max="3.0" step="0.05" value="0.95" />
+    </div>
+    <div class="param-group">
+      <label>Glow <span id="glow-val">0.45</span></label>
+      <input type="range" id="param-glow" min="0.0" max="1.2" step="0.01" value="0.45" />
+    </div>
+    <div class="param-group">
+      <label>Quality <span id="quality-val">1.00</span></label>
+      <input type="range" id="param-quality" min="0.65" max="1.3" step="0.01" value="1.0" />
+    </div>
+    <label class="checkbox-row">
+      <input type="checkbox" id="param-auto-quality" checked />
+      <span>Auto quality</span>
+    </label>
+  </section>
+</div>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap');
+
+  :root {
+    --ink-0: #0f131c;
+    --ink-1: #171f2f;
+    --ink-2: #253247;
+    --line: rgba(255, 255, 255, 0.14);
+    --line-strong: rgba(255, 255, 255, 0.28);
+    --text: #ecf6ff;
+    --muted: #9eb6c7;
+    --accent: #4cf6cf;
+    --accent-hot: #ffe07b;
+  }
+
+  #canvas-container {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    background: radial-gradient(circle at 15% 10%, #23304a 0%, #121624 45%, #07090f 100%);
+  }
+
+  .hud {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    pointer-events: none;
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: clamp(0.7rem, 1.2vw, 1rem);
+  }
+
+  .panel {
+    pointer-events: auto;
+    width: min(30rem, 42vw);
+    background: linear-gradient(145deg, rgba(18, 24, 38, 0.8), rgba(9, 13, 21, 0.72));
+    border: 1px solid var(--line);
+    backdrop-filter: blur(14px);
+    border-radius: 0.9rem;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    padding: 0.95rem;
+  }
+
+  .fractal-list {
+    max-width: 30rem;
+  }
+
+  .params-panel {
+    width: min(19rem, 44vw);
+  }
+
+  header h1 {
+    margin: 0;
+    font-family: 'Space Grotesk', 'Avenir Next', 'Helvetica Neue', sans-serif;
+    letter-spacing: 0.02em;
+    font-size: clamp(1rem, 1.9vw, 1.35rem);
+    color: var(--text);
+    font-weight: 700;
+  }
+
+  .kicker,
+  .label,
+  .hint,
+  .checkbox-row {
+    font-family: 'IBM Plex Mono', 'JetBrains Mono', 'SFMono-Regular', monospace;
+  }
+
+  .kicker {
+    margin: 0 0 0.25rem;
+    color: var(--accent-hot);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .hint {
+    margin: 0.2rem 0 0.75rem;
+    color: var(--muted);
+    font-size: 0.7rem;
+  }
+
+  .label {
+    margin-bottom: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 0.66rem;
+    color: var(--muted);
+  }
+
+  .button-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+
+  button {
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01));
+    color: rgba(236, 246, 255, 0.85);
+    padding: 0.6rem 0.7rem;
+    text-align: left;
+    border-radius: 0.55rem;
+    font-family: 'Space Grotesk', 'Avenir Next', 'Helvetica Neue', sans-serif;
+    font-size: 0.72rem;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: border-color 140ms ease, color 140ms ease, background 140ms ease, transform 140ms ease;
+  }
+
+  button:hover {
+    border-color: var(--line-strong);
+    color: #fff;
+    transform: translateY(-1px);
+  }
+
+  button.active {
+    border-color: rgba(76, 246, 207, 0.92);
+    background: linear-gradient(180deg, rgba(76, 246, 207, 0.24), rgba(76, 246, 207, 0.08));
+    color: #f6fffb;
+  }
+
+  .param-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.36rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .param-group label {
+    display: flex;
+    justify-content: space-between;
+    color: var(--text);
+    font-size: 0.77rem;
+    font-family: 'Space Grotesk', 'Avenir Next', 'Helvetica Neue', sans-serif;
+  }
+
+  .param-group label span {
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', 'JetBrains Mono', 'SFMono-Regular', monospace;
+  }
+
+  input[type='range'] {
+    appearance: none;
+    border-radius: 999px;
+    height: 0.25rem;
+    outline: none;
+    background: linear-gradient(90deg, rgba(255, 224, 123, 0.3), rgba(76, 246, 207, 0.48));
+  }
+
+  input[type='range']::-webkit-slider-thumb {
+    appearance: none;
+    width: 0.82rem;
+    height: 0.82rem;
+    border-radius: 50%;
+    border: 2px solid rgba(7, 12, 18, 0.8);
+    background: #f4fcff;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.14), 0 0 14px rgba(112, 255, 226, 0.35);
+    cursor: pointer;
+  }
+
+  input[type='range']::-moz-range-thumb {
+    width: 0.82rem;
+    height: 0.82rem;
+    border-radius: 50%;
+    border: 2px solid rgba(7, 12, 18, 0.8);
+    background: #f4fcff;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.14), 0 0 14px rgba(112, 255, 226, 0.35);
+    cursor: pointer;
+  }
+
+  .checkbox-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--muted);
+    font-size: 0.68rem;
+    letter-spacing: 0.03em;
+  }
+
+  .checkbox-row input {
+    width: 0.9rem;
+    height: 0.9rem;
+    accent-color: var(--accent);
+  }
+
+  @media (max-width: 940px) {
+    .hud {
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: stretch;
+      overflow-y: auto;
+      padding: 0.65rem;
+      gap: 0.65rem;
+    }
+
+    .panel,
+    .fractal-list,
+    .params-panel {
+      width: 100%;
+      max-width: none;
+    }
+
+    .button-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 640px) {
+    .button-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    button {
+      font-size: 0.69rem;
+      padding: 0.54rem 0.58rem;
+    }
+  }
+</style>
+
+<script>
+  // @ts-nocheck
+  import * as THREE from 'three';
+  import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+  import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+  import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+  import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+  import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+  import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+
+  const vertexShader = `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `;
+
+  const fragmentShader = `
+    precision highp float;
+
+    uniform float time;
+    uniform vec2 resolution;
+    uniform int fractalType;
+    uniform float uScale;
+    uniform int uIter;
+    uniform float uMorph;
+    uniform float uGlow;
+    uniform int uTraceBudget;
+    uniform vec3 uCameraPos;
+    uniform mat4 uCameraMatrix;
+
+    varying vec2 vUv;
+
+    const float FAR_DIST = 80.0;
+    const float SURFACE_EPSILON = 0.0006;
+    const int MAX_TRACE_STEPS = 220;
+    const int MAX_FRACTAL_ITERS = 16;
+
+    mat2 rot(float a) {
+      float s = sin(a);
+      float c = cos(a);
+      return mat2(c, s, -s, c);
+    }
+
+    float sdMandelbulb(vec3 pos) {
+      float power = 8.0 + uMorph * 3.4 + sin(time * 0.18) * 0.9;
+      vec3 z = pos / uScale;
+      float dr = 1.0;
+      float r = 0.0;
+
+      for (int i = 0; i < MAX_FRACTAL_ITERS; i++) {
+        if (i >= uIter) break;
+        r = length(z);
+        if (r > 2.2) break;
+
+        float safeR = max(r, 0.0001);
+        float theta = acos(clamp(z.z / safeR, -1.0, 1.0));
+        float phi = atan(z.y, z.x);
+        dr = pow(safeR, power - 1.0) * power * dr + 1.0;
+
+        float zr = pow(safeR, power);
+        theta *= power;
+        phi *= power;
+
+        z = zr * vec3(
+          sin(theta) * cos(phi),
+          sin(phi) * sin(theta),
+          cos(theta)
+        ) + pos / uScale;
+      }
+
+      return 0.5 * log(max(r, 0.0001)) * r / max(dr, 0.0001) * uScale;
+    }
+
+    float sdMenger(vec3 p) {
+      p /= uScale;
+      float morph = uMorph + sin(time * 0.34) * 0.18;
+      vec3 q = abs(p) - vec3(1.0 + morph * 0.3);
+      float d = length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
+      float s = 1.0;
+
+      for (int i = 0; i < 8; i++) {
+        if (i >= uIter / 2) break;
+        vec3 a = mod(p * s, 2.0) - 1.0;
+        s *= 3.0;
+        vec3 r = abs(1.0 - 3.0 * abs(a));
+        float c = (min(max(r.x, r.y), min(max(r.y, r.z), max(r.z, r.x))) - 1.0) / s;
+        d = max(d, c);
+      }
+
+      return d * uScale;
+    }
+
+    void boxFold(inout vec3 z, float r) {
+      z = clamp(z, -r, r) * 2.0 * r - z;
+    }
+
+    void sphereFold(inout vec3 z, inout float dz) {
+      float r2 = dot(z, z);
+      float minR = 0.5 + uMorph * 0.2;
+
+      if (r2 < minR) {
+        float invMin = 1.0 / minR;
+        z *= invMin;
+        dz *= invMin;
+      } else if (r2 < 1.0) {
+        float inv = 1.0 / r2;
+        z *= inv;
+        dz *= inv;
+      }
+    }
+
+    float sdMandelbox(vec3 p) {
+      p /= uScale;
+      vec3 z = p;
+      vec3 offset = z;
+      float dr = 1.0;
+      float scale = 2.45 + uMorph * 0.35;
+
+      for (int i = 0; i < 14; i++) {
+        if (i >= uIter) break;
+        boxFold(z, 1.0);
+        sphereFold(z, dr);
+        z = scale * z + offset;
+        dr = dr * abs(scale) + 1.0;
+      }
+
+      return length(z) / max(abs(dr), 0.0001) * uScale;
+    }
+
+    float sdSierpinski(vec3 p) {
+      p /= uScale;
+      float s = 1.0;
+      float m = 2.0 + uMorph * 0.65;
+
+      for (int i = 0; i < MAX_FRACTAL_ITERS; i++) {
+        if (i >= uIter) break;
+        if (p.x + p.y < 0.0) p.xy = -p.yx;
+        if (p.x + p.z < 0.0) p.xz = -p.zx;
+        if (p.y + p.z < 0.0) p.yz = -p.zy;
+        p.xy *= rot(time * 0.04);
+        p = p * m - (m - 1.0);
+        s *= m;
+      }
+
+      return (length(p) - 1.0) / s * uScale;
+    }
+
+    float sdApollonian(vec3 p) {
+      p /= uScale;
+      float scale = 1.0;
+
+      for (int i = 0; i < MAX_FRACTAL_ITERS; i++) {
+        if (i >= uIter) break;
+        p = -1.0 + 2.0 * fract(0.5 * p + 0.5 + sin(time * 0.07 + float(i)) * 0.015);
+        float r2 = max(dot(p, p), 0.0002);
+        float k = (1.24 + uMorph * 0.2) / r2;
+        p *= k;
+        scale *= k;
+      }
+
+      return 0.24 * abs(p.y) / scale * uScale;
+    }
+
+    float sdJulia(vec3 p) {
+      p /= uScale;
+      vec4 z = vec4(p, 0.0);
+      vec4 c = vec4(-0.39 + uMorph * 0.24, 0.58 + 0.04 * sin(time * 0.2), 0.12, 0.0);
+      float md2 = 1.0;
+      float mz2 = dot(z, z);
+
+      for (int i = 0; i < 14; i++) {
+        if (i >= uIter) break;
+        md2 *= max(4.0 * mz2, 0.1);
+        z = vec4(
+          z.x * z.x - dot(z.yzw, z.yzw),
+          2.0 * z.x * z.y,
+          2.0 * z.x * z.z,
+          2.0 * z.x * z.w
+        ) + c;
+        mz2 = dot(z, z);
+        if (mz2 > 8.0) break;
+      }
+
+      return 0.25 * sqrt(mz2 / max(md2, 0.0001)) * log(max(mz2, 0.001)) * uScale;
+    }
+
+    float sdKIFS(vec3 p) {
+      p /= uScale;
+      float s = 1.0;
+      float m = 1.82 + uMorph * 0.46;
+
+      for (int i = 0; i < 12; i++) {
+        if (i >= uIter) break;
+        p = abs(p) - 1.0;
+        if (p.x < p.y) p.xy = p.yx;
+        if (p.x < p.z) p.xz = p.zx;
+        if (p.y < p.z) p.yz = p.zy;
+        p.xz *= rot(0.12 * time + float(i) * 0.4);
+        p = p * m - 0.5 * (m - 1.0);
+        s *= m;
+      }
+
+      return length(p) / s * uScale;
+    }
+
+    float sdInfiniteGrid(vec3 p) {
+      p /= uScale;
+      p.xz *= rot(time * 0.055);
+      vec3 q = mod(p + 2.0, 4.0) - 2.0;
+      float s = 0.54 + uMorph * 0.18;
+      return (length(q) - s) * uScale;
+    }
+
+    float sdTorus(vec3 p, vec2 t) {
+      vec2 q = vec2(length(p.xz) - t.x, p.y);
+      return length(q) - t.y;
+    }
+
+    float sdTorusFold(vec3 p) {
+      p /= uScale;
+      float s = 1.0;
+      float m = 1.0 + uMorph * 0.5;
+
+      for (int i = 0; i < 10; i++) {
+        if (i >= uIter) break;
+        p = abs(p) - vec3(0.5) * m;
+        float a = 0.5 + sin(time * 0.1) * 0.15;
+        p.xy *= rot(a);
+        p.xz *= rot(a * 1.4);
+        float r2 = dot(p, p);
+        float k = 1.45 / clamp(r2, 0.2, 1.2);
+        p *= k;
+        s *= k;
+      }
+
+      return sdTorus(p, vec2(1.5, 0.29 + sin(time * 0.3) * 0.05)) / s * uScale;
+    }
+
+    float sdOcta(vec3 p, float s) {
+      p = abs(p);
+      return (p.x + p.y + p.z - s) * 0.57735027;
+    }
+
+    float sdOctahedronFractal(vec3 p) {
+      p /= uScale;
+      float s = 1.0;
+
+      for (int i = 0; i < 12; i++) {
+        if (i >= uIter) break;
+        p = abs(p);
+        if (p.x < p.y) p.xy = p.yx;
+        if (p.x < p.z) p.xz = p.zx;
+        if (p.y < p.z) p.yz = p.zy;
+        float m = 2.0 + uMorph * 0.52;
+        p = p * m - (m - 1.0);
+        s *= m;
+      }
+
+      return sdOcta(p, 1.0) / s * uScale;
+    }
+
+    float sdHyperGasket(vec3 p) {
+      p /= uScale;
+      float s = 1.0;
+      vec3 offset = vec3(1.0 + uMorph);
+
+      for (int i = 0; i < 12; i++) {
+        if (i >= uIter) break;
+        p = abs(p);
+        if (p.x < p.y) p.xy = p.yx;
+        if (p.x < p.z) p.xz = p.zx;
+        if (p.y < p.z) p.yz = p.zy;
+        p = p * 2.0 - offset;
+        p.xy *= rot(0.1 + uMorph * 0.1);
+        s *= 2.0;
+      }
+
+      return (length(p) - 1.5) / s * uScale;
+    }
+
+    float map(vec3 p) {
+      p.xz *= rot(time * 0.05);
+      p.yz *= rot(time * 0.03);
+
+      if (fractalType == 0) return sdMandelbulb(p);
+      if (fractalType == 1) return sdMenger(p);
+      if (fractalType == 2) return sdMandelbox(p);
+      if (fractalType == 3) return sdSierpinski(p);
+      if (fractalType == 4) return sdApollonian(p);
+      if (fractalType == 5) return sdJulia(p);
+      if (fractalType == 6) return sdKIFS(p);
+      if (fractalType == 7) return sdInfiniteGrid(p);
+      if (fractalType == 8) return sdTorusFold(p);
+      if (fractalType == 9) return sdOctahedronFractal(p);
+      if (fractalType == 10) return sdHyperGasket(p);
+      return length(p) - 1.0;
+    }
+
+    vec3 calcNormal(vec3 p) {
+      const vec2 e = vec2(0.0012, -0.0012);
+      return normalize(
+        e.xyy * map(p + e.xyy) +
+        e.yyx * map(p + e.yyx) +
+        e.yxy * map(p + e.yxy) +
+        e.xxx * map(p + e.xxx)
+      );
+    }
+
+    float softShadow(vec3 ro, vec3 rd, float minT, float maxT) {
+      float t = minT;
+      float result = 1.0;
+      for (int i = 0; i < 24; i++) {
+        float h = map(ro + rd * t);
+        result = min(result, 8.0 * h / t);
+        t += clamp(h, 0.02, 0.35);
+        if (result < 0.001 || t > maxT) break;
+      }
+      return clamp(result, 0.0, 1.0);
+    }
+
+    float calcAO(vec3 p, vec3 n) {
+      float occ = 0.0;
+      float weight = 1.0;
+      for (int i = 1; i <= 5; i++) {
+        float h = 0.03 * float(i);
+        float d = map(p + n * h);
+        occ += (h - d) * weight;
+        weight *= 0.7;
+      }
+      return clamp(1.0 - occ, 0.18, 1.0);
+    }
+
+    vec3 getBaseColor(float band) {
+      vec3 c = vec3(0.42, 0.54, 0.8);
+      if (fractalType == 1) c = vec3(0.76, 0.46, 0.29);
+      else if (fractalType == 2) c = vec3(0.38, 0.82, 0.54);
+      else if (fractalType == 3) c = vec3(0.71, 0.36, 0.84);
+      else if (fractalType == 4) c = vec3(0.22, 0.67, 0.86);
+      else if (fractalType == 5) c = vec3(0.89, 0.31, 0.48);
+      else if (fractalType == 6) c = vec3(0.32, 0.88, 0.74);
+      else if (fractalType == 7) c = vec3(0.92, 0.66, 0.31);
+      else if (fractalType == 8) c = vec3(0.36, 0.79, 0.95);
+      else if (fractalType == 9) c = vec3(0.76, 0.46, 0.91);
+      else if (fractalType == 10) c = vec3(0.45, 0.62, 0.98);
+      return mix(c * 0.72, c * 1.16, band);
+    }
+
+    void main() {
+      vec2 uv = (vUv - 0.5) * 2.0;
+      uv.x *= resolution.x / resolution.y;
+
+      vec3 ro = uCameraPos;
+      vec3 rd = normalize((uCameraMatrix * vec4(normalize(vec3(uv, -1.55)), 0.0)).xyz);
+
+      vec3 topSky = vec3(0.09, 0.13, 0.2);
+      vec3 bottomSky = vec3(0.01, 0.015, 0.03);
+      vec3 bg = mix(bottomSky, topSky, clamp(0.5 + 0.5 * rd.y, 0.0, 1.0));
+
+      float t = 0.0;
+      float d = 0.0;
+      for (int i = 0; i < MAX_TRACE_STEPS; i++) {
+        if (i >= uTraceBudget) break;
+        d = map(ro + rd * t);
+        float eps = SURFACE_EPSILON * (1.0 + t * 0.03);
+        if (d < eps || t > FAR_DIST) break;
+        t += d * 0.86;
+      }
+
+      vec3 color = bg;
+      if (t < FAR_DIST) {
+        vec3 p = ro + rd * t;
+        vec3 n = calcNormal(p);
+
+        vec3 keyLight = normalize(vec3(0.78, 0.95, 0.55));
+        vec3 fillLight = normalize(vec3(-0.72, 0.32, -0.4));
+
+        float key = max(dot(n, keyLight), 0.0);
+        float fill = max(dot(n, fillLight), 0.0);
+        float shadow = softShadow(p + n * 0.006, keyLight, 0.04, 16.0);
+        float ao = calcAO(p, n);
+        float rim = pow(1.0 - max(dot(n, -rd), 0.0), 2.7);
+
+        float band = 0.5 + 0.5 * sin(length(p) * 2.8 + time * 0.16 + float(fractalType) * 0.42);
+        vec3 base = getBaseColor(band);
+
+        vec3 lit = base * (0.14 + key * shadow * 0.95 + fill * 0.24) * ao;
+        vec3 emissive = uGlow * (0.12 + 0.16 * band) * base;
+        vec3 spec = vec3(1.0) * pow(max(dot(reflect(-keyLight, n), -rd), 0.0), 18.0) * 0.14;
+
+        vec3 shaded = lit + emissive + spec + rim * vec3(0.6, 0.76, 1.0) * 0.42;
+        float fog = exp(-0.035 * t);
+        color = mix(bg, shaded, fog);
+      }
+
+      color = pow(color, vec3(0.95));
+      gl_FragColor = vec4(color, 1.0);
+    }
+  `;
+
+  const ChromaticAberrationShader = {
+    uniforms: {
+      tDiffuse: { value: null },
+      amount: { value: 0.0012 }
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D tDiffuse;
+      uniform float amount;
+      varying vec2 vUv;
+      void main() {
+        float r = texture2D(tDiffuse, vUv + vec2(amount, 0.0)).r;
+        float g = texture2D(tDiffuse, vUv).g;
+        float b = texture2D(tDiffuse, vUv - vec2(amount, 0.0)).b;
+        gl_FragColor = vec4(r, g, b, 1.0);
+      }
+    `
+  };
+
+  const VignetteShader = {
+    uniforms: {
+      tDiffuse: { value: null },
+      offset: { value: 1.0 },
+      darkness: { value: 1.15 }
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D tDiffuse;
+      uniform float offset;
+      uniform float darkness;
+      varying vec2 vUv;
+
+      void main() {
+        vec4 color = texture2D(tDiffuse, vUv);
+        vec2 uv = (vUv - 0.5) * 2.0;
+        float dist = length(uv);
+        float vig = smoothstep(offset, offset - 0.65, dist);
+        color.rgb *= mix(1.0, vig, darkness - 1.0);
+        gl_FragColor = color;
+      }
+    `
+  };
+
+  const FRACTAL_CAMERA_DISTANCE = {
+    0: 4.0,
+    1: 4.5,
+    2: 4.2,
+    3: 3.7,
+    4: 1.8,
+    5: 3.0,
+    6: 5.0,
+    7: 8.0,
+    8: 5.5,
+    9: 3.2,
+    10: 4.5
+  };
+
+  const state = {
+    basePixelRatio: Math.min(window.devicePixelRatio || 1, 1.6),
+    quality: 1.0,
+    autoQuality: true,
+    frameAccumulator: 0,
+    frameSamples: 0
+  };
+
+  let container;
+  let scene;
+  let camera;
+  let orthoCamera;
+  let renderer;
+  let material;
+  let composer;
+  let bloomPass;
+  let controls;
+  let clock;
+
+  function updateRenderScale() {
+    const clamped = Math.max(0.65, Math.min(1.3, state.quality));
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const pixelRatio = Math.max(0.7, Math.min(1.85, state.basePixelRatio * clamped));
+
+    renderer.setPixelRatio(pixelRatio);
+    renderer.setSize(width, height);
+    composer.setSize(width, height);
+    material.uniforms.resolution.value.set(width, height);
+    material.uniforms.uTraceBudget.value = Math.round(110 + clamped * 85);
+
+    const qualityEl = document.getElementById('quality-val');
+    if (qualityEl) {
+      qualityEl.textContent = clamped.toFixed(2);
+    }
+  }
+
+  function init() {
+    container = document.getElementById('canvas-container');
+    if (!container) return;
+
+    scene = new THREE.Scene();
+    orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 4);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.08;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    container.appendChild(renderer.domElement);
+
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.055;
+    controls.enablePan = false;
+    controls.minDistance = 1.2;
+    controls.maxDistance = 13.0;
+
+    const geometry = new THREE.PlaneGeometry(2, 2);
+    material = new THREE.ShaderMaterial({
+      uniforms: {
+        time: { value: 0.0 },
+        resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+        fractalType: { value: 0 },
+        uScale: { value: 1.0 },
+        uIter: { value: 8 },
+        uMorph: { value: 0.0 },
+        uGlow: { value: 0.45 },
+        uTraceBudget: { value: 190 },
+        uCameraPos: { value: new THREE.Vector3() },
+        uCameraMatrix: { value: new THREE.Matrix4() }
+      },
+      vertexShader,
+      fragmentShader
+    });
+
+    scene.add(new THREE.Mesh(geometry, material));
+
+    const renderScene = new RenderPass(scene, orthoCamera);
+    bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.95, 0.35, 0.82);
+
+    composer = new EffectComposer(renderer);
+    composer.addPass(renderScene);
+    composer.addPass(bloomPass);
+    composer.addPass(new ShaderPass(ChromaticAberrationShader));
+    composer.addPass(new ShaderPass(VignetteShader));
+    composer.addPass(new OutputPass());
+
+    bindUI();
+    updateRenderScale();
+
+    clock = new THREE.Clock();
+    window.addEventListener('resize', onWindowResize);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    animate();
+  }
+
+  function bindUI() {
+    const buttons = document.querySelectorAll('.fractal-list button');
+    if (buttons.length > 0) {
+      buttons[0].classList.add('active');
+    }
+
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const type = Number(button.getAttribute('data-type') || '0');
+        material.uniforms.fractalType.value = type;
+        buttons.forEach((b) => b.classList.remove('active'));
+        button.classList.add('active');
+
+        const dist = FRACTAL_CAMERA_DISTANCE[type] ?? 4.0;
+        camera.position.normalize().multiplyScalar(dist);
+        controls.update();
+      });
+    });
+
+    const setupSlider = (id, onChange, valueId, decimals = 2) => {
+      const input = document.getElementById(id);
+      const valueNode = document.getElementById(valueId);
+      if (!input || !valueNode) return;
+
+      const emit = () => {
+        const value = Number(input.value);
+        onChange(value);
+        valueNode.textContent = value.toFixed(decimals);
+      };
+
+      input.addEventListener('input', emit);
+      emit();
+    };
+
+    setupSlider('param-scale', (value) => {
+      material.uniforms.uScale.value = value;
+    }, 'scale-val');
+
+    setupSlider('param-iter', (value) => {
+      material.uniforms.uIter.value = Math.round(value);
+    }, 'iter-val', 0);
+
+    setupSlider('param-morph', (value) => {
+      material.uniforms.uMorph.value = value;
+    }, 'morph-val');
+
+    setupSlider('param-bloom', (value) => {
+      bloomPass.strength = value;
+    }, 'bloom-val');
+
+    setupSlider('param-glow', (value) => {
+      material.uniforms.uGlow.value = value;
+    }, 'glow-val');
+
+    setupSlider('param-quality', (value) => {
+      state.quality = value;
+      if (!state.autoQuality) {
+        updateRenderScale();
+      }
+    }, 'quality-val');
+
+    const autoQuality = document.getElementById('param-auto-quality');
+    if (autoQuality) {
+      autoQuality.checked = true;
+      autoQuality.addEventListener('change', () => {
+        state.autoQuality = autoQuality.checked;
+        if (!state.autoQuality) {
+          const qualitySlider = document.getElementById('param-quality');
+          if (qualitySlider) {
+            state.quality = Number(qualitySlider.value);
+            updateRenderScale();
+          }
+        }
+      });
+    }
+  }
+
+  function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    updateRenderScale();
+  }
+
+  function onVisibilityChange() {
+    if (document.visibilityState === 'visible') {
+      state.frameAccumulator = 0;
+      state.frameSamples = 0;
+      clock.getDelta();
+    }
+  }
+
+  function updateAutoQuality(frameMs) {
+    if (!state.autoQuality) {
+      return;
+    }
+
+    state.frameAccumulator += frameMs;
+    state.frameSamples += 1;
+
+    if (state.frameSamples < 40) {
+      return;
+    }
+
+    const avgMs = state.frameAccumulator / state.frameSamples;
+    state.frameAccumulator = 0;
+    state.frameSamples = 0;
+
+    let changed = false;
+    if (avgMs > 24.0 && state.quality > 0.7) {
+      state.quality = Math.max(0.65, state.quality - 0.05);
+      changed = true;
+    } else if (avgMs < 16.5 && state.quality < 1.25) {
+      state.quality = Math.min(1.3, state.quality + 0.03);
+      changed = true;
+    }
+
+    if (changed) {
+      const slider = document.getElementById('param-quality');
+      if (slider) {
+        slider.value = state.quality.toFixed(2);
+      }
+      updateRenderScale();
+    }
+  }
+
+  function animate() {
+    requestAnimationFrame(animate);
+
+    const delta = Math.min(clock.getDelta(), 0.06);
+    updateAutoQuality(delta * 1000.0);
+
+    controls.update();
+    camera.updateMatrixWorld();
+
+    material.uniforms.time.value += delta;
+    material.uniforms.uCameraPos.value.copy(camera.position);
+    material.uniforms.uCameraMatrix.value.copy(camera.matrixWorld);
+
+    composer.render();
+  }
+
+  init();
+</script>
