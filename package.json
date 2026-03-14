@@ -16,16 +16,16 @@
     "lint:fix": "oxlint --fix . && oxfmt"
   },
   "dependencies": {
-    "astro": "^6.0.3",
+    "astro": "^6.0.4",
     "three": "^0.183.2"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.7",
     "@astrojs/cloudflare": "^12.6.13",
     "husky": "^9.1.7",
-    "lint-staged": "^16.3.3",
+    "lint-staged": "^16.4.0",
     "oxfmt": "^0.37.0",
-    "oxlint": "^1.52.0",
+    "oxlint": "^1.55.0",
     "typescript": "^5.9.3"
   },
   "lint-staged": {
